@@ -96,7 +96,7 @@ function processItems (schema, rootSchema, base, config) {
     const defaultValue = item.default
     const optional = !schema.minItems || i >= schema.minItems
     if (item.type === 'array' && item.items) {
-      result.push(...writeProperty('array', prefixedProperty, item.description, optional, defaultValue, schema, config))
+      result.push(...writeProperty('array', prefixedProperty, item.description, optional, defaultValue, schema, config, item.items))
       result.push(...processItems(item, rootSchema, prefixedProperty, config))
     } else if (item.type === 'object' && item.properties) {
       result.push(...writeProperty('object', prefixedProperty, item.description, optional, defaultValue, schema, config))
@@ -127,7 +127,7 @@ function processProperties (schema, rootSchema, base, config) {
         result.push(...writeProperty('object', prefixedProperty, prop.description, optional, defaultValue, schema, config))
         result.push(...processProperties(prop, rootSchema, prefixedProperty, config))
       } else if (prop.type === 'array' && prop.items) {
-        result.push(...writeProperty('array', prefixedProperty, prop.description, optional, defaultValue, schema, config))
+        result.push(...writeProperty('array', prefixedProperty, prop.description, optional, defaultValue, schema, config, prop.items))
         result.push(...processItems(prop, rootSchema, prefixedProperty, config))
       } else {
         const type = getSchemaType(prop, rootSchema) || getDefaultPropertyType(config, property)
@@ -186,7 +186,7 @@ function getSchemaType (schema, rootSchema) {
   return schema.type
 }
 
-function getType (schema, config, type) {
+function getType (schema, config, type, items = null) {
   const typeCheck = type || schema.type
   let typeMatch
   if (schema.format) {
@@ -195,6 +195,21 @@ function getType (schema, config, type) {
   }
   if (typeMatch === undefined || typeMatch === null) {
     typeMatch = config.types && config.types[typeCheck]
+  }
+
+  if(type === 'array') {  
+    //console.log('items', items)  
+    if(items && items['$ref']) {
+      let ref = items['$ref'].split('/').pop();
+      ref = ref.charAt(0).toUpperCase() + ref.slice(1);
+      return ` {${ref}[]}`
+    }
+  }
+
+  if(schema['$ref']) {      
+    let ref = schema['$ref'].split('/').pop();
+    ref = ref.charAt(0).toUpperCase() + ref.slice(1);
+    return ` {${ref}}`
   }
 
   let typeStr
@@ -238,8 +253,8 @@ function writeDescription (schema, config) {
   return result
 }
 
-function writeProperty (type, field, description = '', optional, defaultValue, schema, config) {
-  const typeExpression = getType(schema, config, type)
+function writeProperty (type, field, description = '', optional, defaultValue, schema, config, items = null) {
+  const typeExpression = getType(schema, config, type, items)
 
   let fieldTemplate = ' '
   if (optional) {
